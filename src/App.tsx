@@ -11,11 +11,11 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <>
       {charts.map((chart, idx) => (
         <ChartRenderer key={idx} chart={chart} />
       ))}
-    </div>
+    </>
   );
 }
 
