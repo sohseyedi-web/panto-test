@@ -1,26 +1,57 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { type MultiSeriesData } from '../types/chart';
 
-type Props = {
+type MultiProps = {
   data: MultiSeriesData[];
-  width?: number;
-  height?: number;
 };
 
-export default function MultiLineChart({ data, width = 500, height = 300 }: Props) {
+export default function MultiLineChart({ data }: MultiProps) {
   const ref = useRef<SVGSVGElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
+
+  const createLine = useCallback(
+    (x: d3.ScaleLinear<number, number>, y: d3.ScaleLinear<number, number>) =>
+      d3
+        .line<[number, number | null]>()
+        .defined(d => d[1] !== null)
+        .x(d => x(d[0]))
+        .y(d => y(d[1]!))
+        .curve(d3.curveMonotoneX),
+    []
+  );
+
+  const updateDimensions = useCallback(() => {
+    if (!ref.current?.parentElement) return;
+    const { width } = ref.current.parentElement.getBoundingClientRect();
+    setDimensions({
+      width: Math.min(width, 800),
+      height: 400,
+    });
+  }, []);
 
   useEffect(() => {
-    if (!ref.current) return;
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [updateDimensions]);
 
+  useEffect(() => {
+    if (!ref.current || !data.length) return;
+
+    const { width, height } = dimensions;
     const margin = { top: 20, right: 20, bottom: 30, left: 40 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const series1 = data.map(([t, v]) => [t, v[0]] as [number, number | null]);
-    const series2 = data.map(([t, v]) => [t, v[1]] as [number, number | null]);
-    const series3 = data.map(([t, v]) => [t, v[2]] as [number, number | null]);
+    const safeData = data.map(([t, v]) => [
+      t,
+      Array.isArray(v) ? v : [null, null, null],
+    ]) as MultiSeriesData[];
+
+    const series1 = safeData.map(([t, v]) => [t, v[0] ?? null] as [number, number | null]);
+    const series2 = safeData.map(([t, v]) => [t, v[1] ?? null] as [number, number | null]);
+    const series3 = safeData.map(([t, v]) => [t, v[2] ?? null] as [number, number | null]);
 
     const allValidValues = [...series1, ...series2, ...series3].filter(d => d[1] !== null) as [
       number,
@@ -38,7 +69,7 @@ export default function MultiLineChart({ data, width = 500, height = 300 }: Prop
 
     const x = d3
       .scaleLinear()
-      .domain(d3.extent(data, d => d[0]) as [number, number])
+      .domain(d3.extent(safeData, d => d[0]) as [number, number])
       .range([0, innerWidth]);
 
     const y = d3
@@ -47,12 +78,7 @@ export default function MultiLineChart({ data, width = 500, height = 300 }: Prop
       .nice()
       .range([innerHeight, 0]);
 
-    const createLine = (series: [number, number | null][]) =>
-      d3
-        .line<[number, number | null]>()
-        .defined(d => d[1] !== null)
-        .x(d => x(d[0]))
-        .y(d => y(d[1]!));
+    const lineGenerator = createLine(x, y);
 
     const lines = [
       { color: 'blue', data: series1 },
@@ -67,12 +93,17 @@ export default function MultiLineChart({ data, width = 500, height = 300 }: Prop
         .attr('fill', 'none')
         .attr('stroke', line.color)
         .attr('stroke-width', 2)
-        .attr('d', createLine(line.data));
+        .attr('d', lineGenerator);
     });
 
-    svg.append('g').attr('transform', `translate(0,${innerHeight})`).call(d3.axisBottom(x));
-    svg.append('g').call(d3.axisLeft(y));
-  }, [data, width, height]);
+    svg
+      .append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(x).tickSizeOuter(0))
+      .attr('color', '#777');
 
-  return <svg ref={ref}></svg>;
+    svg.append('g').call(d3.axisLeft(y).tickSizeOuter(0)).attr('color', '#777');
+  }, [data, dimensions, createLine]);
+
+  return <svg ref={ref} style={{ width: '100%', height: 'auto' }} />;
 }
