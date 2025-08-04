@@ -1,0 +1,23 @@
+.chart-container {
+  margin: 2rem auto;
+  padding: 1rem;
+  border: 1px solid #161616;
+  border-radius: 8px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.chart-title {
+  text-align: left;
+  margin: 0 0 1rem;
+  color: #161616;
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.error {
+  color: #d32f2f;
+  text-align: center;
+  padding: 2rem;
+}
